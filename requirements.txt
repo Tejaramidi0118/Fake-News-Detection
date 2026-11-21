@@ -1,6 +1,2 @@
-pandas
-numpy
-scikit-learn
-scipy
-nltk
-xgboost
+# Main application dependencies (single source of truth).
+-r Project_final/requirements.txt

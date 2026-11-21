@@ -1,0 +1,12 @@
+# Optional historical notebooks/training only; not installed by Render.
+# This research environment has not been validated in the current review.
+pandas
+numpy
+scipy
+scikit-learn
+nltk
+vaderSentiment
+xgboost
+tqdm
+joblib
+jupyterlab

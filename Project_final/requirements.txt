@@ -1,0 +1,9 @@
+# Web application only. Versions tested locally with Python 3.11.
+# Research/ML packages are separate; Render does not train or load a model by default.
+fastapi==0.165.0
+uvicorn==0.54.0
+jinja2==3.1.6
+pydantic==2.14.4
+requests==2.34.2
+beautifulsoup4==4.15.0
+python-dotenv==1.2.4

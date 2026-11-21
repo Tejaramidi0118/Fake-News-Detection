@@ -1,90 +1,47 @@
-# Fake News Detection
+# TruSight AI — Fake News Detection
 
-## Politifact Fact-Checking Project
+An evidence-first claim-checking web application, alongside the project's original LIAR and PolitiFact machine-learning experiments.
 
-This project aims to analyze and model fact-checking data from PolitiFact. It includes two machine learning models for classifying statements, along with the dataset used for training and evaluation.
+## Current application
 
-### Project Structure
+1. Prepare a concise search query from the user's statement.
+2. Search GNews and Tavily for relevant sources.
+3. Retrieve up to five article excerpts and ask Groq to assess their relationship to the claim.
+4. Show supporting, contradicting, mixed, or insufficient evidence with original links, dates when available, and excerpts.
+5. Present a direct Groq-written answer with citations when usable evidence exists.
 
-* **`politifact_factcheck_data.csv`**: This file is a dataset containing information about various statements that have been fact-checked. It includes columns such as the `verdict` (e.g., true, false, mostly-true), `statement_originator`, `statement`, `statement_date`, `statement_source`, `factchecker`, `factcheck_date`, and a link to the `factcheck_analysis_link`. The dataset has 21,152 rows and 8 columns. A significant portion of the data, specifically 11,795 entries, comes from "news," "blog," or "social_media" sources.
-* **`Politifact_Model-2Classes.ipynb`**: This Jupyter Notebook contains code for a machine learning model that classifies statements into two categories (binary classification).
-* **`Politifact_Model-6Classes.ipynb`**: This Jupyter Notebook contains a more advanced machine learning model for multiclass classification, categorizing statements into six distinct classes.
+The application summarizes retrieved evidence; it does not guarantee factual truth. Current-event dates, incomplete article extraction, search coverage, and model errors can affect results. A source quote is checked against retrieved text, but its presence alone does not prove the assessment is correct. No invented confidence percentage is displayed.
 
-### Features and Models
+## Architecture
 
-The project uses several features for its models, including:
-* **Text features**: The models use a TF-IDF vectorizer on the statement text to capture important words and phrases.
-* **Sentiment analysis**: A VADER sentiment analyzer is used to extract the sentiment of each statement, which is then used as a feature in the models.
-* **Part-of-speech (POS) ratios**: The notebooks calculate the ratios of nouns, verbs, and pronouns in the statements as additional features.
+**One FastAPI application serves both the HTML/CSS/JavaScript frontend and API routes.** Browser requests use the same origin. GNews, Tavily, and Groq keys stay server-side. A separate frontend service, database, JavaScript build, or CORS configuration is not required.
 
-The models explored include:
-* Logistic Regression
-* Multinomial Naive Bayes
-* Support Vector Machines (SVC)
-* K-Nearest Neighbors Classifier
-* Decision Tree Classifier
-* Random Forest Classifier
-* AdaBoost Classifier
-* XGBoost Classifier
+Render should host this as **one Python Web Service**, not a Static Site. A browser-only version would expose the provider API keys. External search, article retrieval, and model calls still take time even in a single service.
 
-The notebooks perform data preprocessing steps such as filtering data from specific sources (`news`, `blog`, `social_media`), encoding categorical labels, scaling numerical features, and splitting the data into training, validation, and testing sets. They also include performance metrics like `classification_report`, `accuracy_score`, and `confusion_matrix` to evaluate the models' performance.
+## Files
 
-***
-#### How to Use the Notebooks
+- `Project_final/app.py`: FastAPI routes and HTML/static delivery.
+- `Project_final/verifier.py`: query preparation, provider search, article assessment, and cited answers.
+- `Project_final/templates/index.html`, `Project_final/static/style.css`: browser UI.
+- `Project_final/tests/`: offline regression tests.
+- `Project_final/.env.example`: blank environment-variable template.
+- `Project_final/requirements.txt`: tested runtime dependency versions.
+- `Project_final/requirements-research.txt`: optional, unvalidated historical notebook dependencies.
+- `Project_final/Liar_Dataset/`, `Project_final/Politifact_Dataset/`: existing datasets, notebooks, and the separate historical Flask demo.
 
-To run the models and reproduce the results, you will need to:
+## Run and publish
 
-1.  Clone the repository from GitHub.
-2.  Install the necessary libraries listed in the notebook.
-3.  Ensure the `politifact_factcheck_data.csv` file is in the same directory as the notebooks.
-4.  Run the cells in the Jupyter Notebooks sequentially.
+See [RUN_COMMANDS.md](RUN_COMMANDS.md) for local setup, tests, history-preserving GitHub commands, and proposed single-service Render settings. [RUNCOMMANDS.md](RUNCOMMANDS.md) points to the same guide.
 
-***
-#### Repository Statistics
+## API
 
-The `politifact_factcheck_data.csv` file contains a total of 21,152 data points. The `statement_source` column has 13 unique categories, with the most common being `news`, `blog`, and `social_media`.
+- `GET /`: web interface.
+- `POST /verify_realtime`: JSON `{"text": "Your claim, including date or event context where relevant"}`.
+- `GET /docs`: interactive FastAPI API documentation.
+- `POST /predict_local`: retained historical local-classifier route; returns 503 without a model. Local training/inference compatibility issues identified during review remain unresolved and this route is not used by the browser.
 
-## Liar Dataset Machine Learning Project
+## Verification status
 
-This project explores a machine learning approach to fact-checking and classifying statements from the Liar Dataset. The goal is to build models that can predict the truthfulness of a statement based on its content and associated metadata.
+The live GNews + Tavily + Groq integration and cited answer have been exercised locally. Twenty-one offline regression tests cover evidence handling, provider errors, clarification, answer citations, and Tavily configuration. The browser answer box was checked at desktop and mobile widths. No Render deployment has been performed or verified.
 
-### Project Structure
-
-- **`train.tsv`, `test.tsv`, `valid.tsv`**: These files contain the dataset, split into training, testing, and validation sets. [cite_start]Each file is a tab-separated value file with the following columns[cite: 85437]:
-    - [cite_start]`label`: The truthfulness label of the statement (e.g., false, barely-true, half-true, mostly-true, true, pants-fire)[cite: 85437].
-    - [cite_start]`statement`: The text of the statement itself[cite: 85437].
-    - [cite_start]`subject`: The subject of the statement[cite: 85437].
-    - [cite_start]`speaker`: The individual who made the statement[cite: 85437].
-    - [cite_start]`speaker_job`: The job title or role of the speaker[cite: 85437].
-    - [cite_start]`state_info`: The state associated with the speaker[cite: 85437].
-    - [cite_start]`party_affiliation`: The political party of the speaker[cite: 85437].
-    - [cite_start]`barely_true_counts`, `false_counts`, `half_true_counts`, `mostly_true_counts`, `pants_on_fire_counts`: The number of times the speaker has made statements of that truthfulness type in the past[cite: 85437].
-    - [cite_start]`context`: The context in which the statement was made (e.g., interview, rally, debate)[cite: 85437].
-
-- **`Liar_Dataset.ipynb`**: This Jupyter Notebook contains the code for data preprocessing, feature engineering, and model training.
-
-### Methodology
-
-The notebook outlines a comprehensive machine learning pipeline, including:
-
-* [cite_start]**Data Loading & Preprocessing**: The datasets are loaded into pandas DataFrames, and categorical columns like `label` are encoded using `LabelEncoder`[cite: 85437].
-* **Feature Engineering**:
-    * [cite_start]**Textual Features**: A `TfidfVectorizer` is applied to the `statement` column to convert the text into numerical features, considering both single words and two-word phrases (bigrams)[cite: 85437].
-    * [cite_start]**Categorical Features**: One-hot encoding is applied to the `party_affiliation` and `speaker_job` columns[cite: 85437].
-    * [cite_start]**Numerical Features**: A min-max scaler is used to process numerical features such as the counts of previous statements[cite: 85437].
-* [cite_start]**Model Training & Evaluation**: The notebook explores several classification models to predict the `label` of a statement, including[cite: 85437]:
-    * Logistic Regression
-    * Multinomial Naive Bayes
-    * Support Vector Classifier (SVC)
-    * K-Nearest Neighbors Classifier
-    * Decision Tree Classifier
-    * Random Forest Classifier
-    * AdaBoost Classifier
-    * XGBoost Classifier
-[cite_start]The performance of these models is evaluated using metrics such as `accuracy_score` and `classification_report` on a validation set[cite: 85437].
-
-### How to Run
-
-1.  Clone this repository.
-2.  Install the required Python libraries. [cite_start]The notebook imports `pandas`, `numpy`, `scipy.sparse`, and several modules from `sklearn` and `xgboost`[cite: 85437].
-3.  Run the cells in the `Liar_Dataset.ipynb` Jupyter Notebook sequentially to reproduce the analysis and model training.
+Original research notebooks and datasets are preserved. Their saved evaluation metrics are historical and are not accuracy claims for the live verifier. Training is optional and deferred.

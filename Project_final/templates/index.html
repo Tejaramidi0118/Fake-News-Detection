@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruSight | Advanced AI Verification</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Outfit:wght@500;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>TruSight AI</h1>
+            <p class="subtitle">Check claims against news sources and inspect the evidence</p>
+        </header>
+
+        <div class="verifier-card">
+            <div class="input-group">
+                <textarea id="claimInput" maxlength="2000" aria-label="Statement to check"
+                    placeholder="Paste a news headline, claim, or tweet here to verify..."></textarea>
+            </div>
+            <button class="btn-verify" onclick="verifyClaim()">
+                <span id="btnText">Find Evidence</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </div>
+
+        <p id="requestError" role="alert"></p>
+        <div class="results-container" id="resultsContainer" aria-live="polite">
+            <section class="result-card full-width answer-card" aria-labelledby="answerHeading">
+                <h2 id="answerHeading">Answer from the evidence</h2>
+                <p id="directAnswer" class="answer-text"></p>
+                <div id="answerCitations" class="answer-citations" aria-label="Answer sources"></div>
+                <p id="answerNote" class="score-label"></p>
+            </section>
+            <div class="result-card full-width">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3><span aria-hidden="true">⌕</span> Real-Time Verification</h3>
+                    <span class="verdict-badge unverified" id="geminiVerdictBadge">Checking...</span>
+                </div>
+
+                <p id="evidenceSummary" class="score-label"></p>
+                <p id="searchQuery" class="score-label"></p>
+                <div id="providerMessages" class="score-label"></div>
+
+                <p class="reasoning-text" id="geminiReasoning">
+                    Analysis pending...
+                </p>
+
+                <div class="sources-list" id="sourcesList">
+                    <!-- Sources injected here -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function addText(parent, tag, value, className = '') {
+            const element = document.createElement(tag);
+            element.textContent = value;
+            element.className = className;
+            parent.appendChild(element);
+            return element;
+        }
+
+        async function verifyClaim() {
+            const text = document.getElementById('claimInput').value.trim();
+            const error = document.getElementById('requestError');
+            error.textContent = '';
+            if (!text) { error.textContent = 'Enter a statement to check.'; return; }
+            const btn = document.querySelector('.btn-verify');
+            const loader = document.getElementById('loader');
+            const btnText = document.getElementById('btnText');
+            const container = document.getElementById('resultsContainer');
+            btn.disabled = true;
+            btnText.textContent = 'Finding and assessing sources…';
+            loader.style.display = 'block';
+            container.classList.remove('visible');
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 300000);
+            try {
+                const response = await fetch('/verify_realtime', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text}), signal: controller.signal
+                });
+                if (!response.ok) throw new Error(response.status === 422
+                    ? 'Enter a statement between 1 and 2,000 characters.'
+                    : 'Verification could not complete. Please try again.');
+                const data = await response.json();
+                const answer = data.answer || {text: data.reasoning, citations: [], status: 'summary'};
+                document.getElementById('directAnswer').textContent = answer.text;
+                document.getElementById('answerNote').textContent = answer.status === 'generated'
+                    ? 'Written by Groq from the cited excerpts. Check the original sources for context.'
+                    : answer.status === 'clarification' ? 'Add the missing context to your statement and try again.'
+                    : 'Evidence summary. A source-backed answer is not available for this check.';
+                const citations = document.getElementById('answerCitations');
+                citations.replaceChildren();
+                (answer.citations || []).forEach(citation => {
+                    let url;
+                    try { url = new URL(citation.url); } catch { return; }
+                    if (!['https:', 'http:'].includes(url.protocol)) return;
+                    const link = addText(citations, 'a', `[${citation.source_id}] ${citation.publisher}`, 'answer-citation');
+                    link.href = url.href;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.title = citation.title;
+                });
+                const badge = document.getElementById('geminiVerdictBadge');
+                badge.className = 'verdict-badge ' + getBadgeClass(data.verdict);
+                badge.textContent = data.verdict;
+                document.getElementById('geminiReasoning').textContent = data.reasoning;
+                const counts = data.evidence_counts || {};
+                document.getElementById('evidenceSummary').textContent =
+                    `${counts.found || 0} sources found · ${counts.analyzed || 0} assessed`;
+                document.getElementById('searchQuery').textContent = data.query ? `Search query: ${data.query}` : '';
+                const providers = document.getElementById('providerMessages');
+                providers.replaceChildren();
+                (data.providers || []).forEach(p => addText(providers, 'p', `${p.provider}: ${p.message}`));
+                const list = document.getElementById('sourcesList');
+                list.replaceChildren();
+                (data.sources || []).forEach((src, index) => {
+                    let url;
+                    try { url = new URL(src.url); } catch { return; }
+                    if (!['https:', 'http:'].includes(url.protocol)) return;
+                    const card = addText(list, 'article', '', 'source-item');
+                    const link = addText(card, 'a', `[${index + 1}] ${src.title}`, 'source-title');
+                    link.href = url.href;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    addText(card, 'p', `${src.publisher || src.source_domain} · ${src.published_at || 'Date unavailable'}`, 'source-domain');
+                    addText(card, 'p', (src.verdict || 'not_analyzed').replaceAll('_', ' ').toUpperCase(), 'source-assessment');
+                    addText(card, 'p', src.reason || '', 'reasoning-text');
+                    if (src.quote) addText(card, 'blockquote', src.quote);
+                    else if (src.snippet) addText(card, 'p', `Search preview: ${src.snippet}`, 'score-label');
+                });
+                container.classList.add('visible');
+            } catch (err) {
+                error.textContent = err.name === 'AbortError'
+                    ? 'The check took too long. Please try again shortly.' : err.message;
+            } finally {
+                clearTimeout(timer);
+                btn.disabled = false;
+                btnText.textContent = 'Find Evidence';
+                loader.style.display = 'none';
+            }
+        }
+        function getBadgeClass(verdict) {
+            if (verdict === 'Evidence supports') return 'true';
+            if (verdict === 'Evidence contradicts') return 'fake';
+            if (verdict === 'Mixed evidence') return 'likely';
+            return 'unverified';
+        }
+    </script>
+</body>
+</html>
